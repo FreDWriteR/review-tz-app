@@ -2,9 +2,10 @@
 
 namespace App\Providers;
 
+use App\Infrastructure\Contracts\CartStorageInterface;
+use App\Repository\RedisCartStorage;
+use Illuminate\Support\Facades\Session;
 use Illuminate\Support\ServiceProvider;
-use App\Repository\CartManager;
-use Psr\Log\LoggerInterface;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -13,13 +14,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(CartManager::class, function($app) {
-            $redis = $app['config']['database.redis.default'];
-            return new CartManager(
-                $redis['host'],
-                (int)$redis['port'] ?? 6379,
-                $redis['password'] ?? null,
-                $app->make(LoggerInterface::class)
+        $this->app->singleton(CartStorageInterface::class, function($app) {
+            $config = config('database.redis.default');
+            $sessionId = Session::getId();
+            return new RedisCartStorage(
+                $config['host'],
+                $config['port'] ?? 6379,
+                $config['password'] ?? null,
+                $sessionId
             );
         });
     }

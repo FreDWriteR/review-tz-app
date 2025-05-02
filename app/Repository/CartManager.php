@@ -1,56 +1,45 @@
 <?php
-
-declare(strict_types = 1);
+declare(strict_types=1);
 
 namespace App\Repository;
 
-use App\Infrastructure\ConnectorException;
-use Illuminate\Support\Facades\Log;
-use Psr\Log\LoggerInterface;
 use App\Domain\Cart;
-use App\Infrastructure\ConnectorFacade;
+use App\Domain\CartItem;
+use App\Infrastructure\Contracts\CartStorageInterface;
+use Psr\Log\LoggerInterface;
 use Illuminate\Support\Facades\Session;
+use Ramsey\Uuid\Uuid;
+use Throwable;
 
-class CartManager extends ConnectorFacade
+class CartManager
 {
     public function __construct(
-        $host,
-        $port,
-        $password,
-        private readonly LoggerInterface $logger
-    )
+        private CartStorageInterface $storage,
+        private LoggerInterface      $logger
+    ) {}
+
+    public function addItem(string $productUuid, float $price, int $quantity): Cart
     {
-        parent::__construct($host, $port, $password, 1);
-        parent::build();
+        $sessionId = Session::getId();
+        $cart = $this->storage->getCart($sessionId) ?? new Cart($sessionId);
+        $cart->addItem(new CartItem(
+            Uuid::uuid4()->toString(),
+            $productUuid,
+            $price,
+            $quantity
+        ));
+        try {
+            $this->storage->saveCart($cart);
+        } catch (Throwable $e) {
+            $this->logger->error('Cannot save cart', ['exception' => $e]);
+            throw $e;
+        }
+        return $cart;
     }
 
-    /**
-     * @inheritdoc
-     */
-    public function saveCart(Cart $cart): void
+    public function fetchCart(): ?Cart
     {
-        try {
-            $this->connector->set(Session::getId(), $cart);
-        } catch (ConnectorException $e) {
-            $this->logger->error('Error', ['exception' => $e]);
-        }
-    }
-
-    /**
-     * @return ?Cart
-     */
-    public function getCart(): ?Cart
-    {
-        try {
-            return $this->connector->get(Session::getId());
-        } catch (ConnectorException $e) {
-            $this->logger->error(
-                'Ошибка получения корзины из Redis',
-                ['session_id' => Session::getId(), 'exception' => $e]
-            );
-
-            // Явно возвращаем null, чтобы контроллер понял: это именно ошибка, а не пустая корзина
-            return null;
-        }
+        $sessionId = Session::getId();
+        return $this->storage->getCart($sessionId);
     }
 }

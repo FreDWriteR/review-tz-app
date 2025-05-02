@@ -7,7 +7,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Repository\CartManager;
 use App\View\CartView;
-use Illuminate\Support\Facades\Log;
 
 class GetCartController
 {
@@ -18,18 +17,10 @@ class GetCartController
 
     public function get(Request $request): JsonResponse
     {
-        Log::channel('review-tz-app')->debug("Вход");
-        $cart = $this->cartManager->getCart();
-
+        $cart = $this->cartManager->fetchCart();
         if (! $cart) {
-            return response()->json(
-                ['message' => 'Cart not found'],
-                404
-            );
+            return response()->json(['message'=>'Cart not found'], 404);
         }
-
-        return response()->json(
-            $this->cartView->toArray($cart)
-        );
+        return response()->json($this->cartView->toArray($cart));
     }
 }
